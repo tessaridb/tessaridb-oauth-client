@@ -12,6 +12,12 @@ pub enum Error {
     /// The key set could not be fetched: refused address, no answer, an error answer, or more than this client reads.
     #[error("the key set could not be fetched: {0}")]
     Fetch(&'static str),
+    /// A client registration this crate cannot send users with.
+    #[error("the client is not usable: {0}")]
+    Client(&'static str),
+    /// The system's random source failed.
+    #[error("no random bytes could be drawn")]
+    Random,
 }
 
 /// The result of an operation in this crate.

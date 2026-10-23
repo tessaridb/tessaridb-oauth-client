@@ -2,6 +2,7 @@
 //! time a relying party's sign-in. It speaks the protocol and nothing of the server's code.
 
 mod error;
+pub mod relying;
 pub mod resource;
 
 pub use error::{Error, Result};

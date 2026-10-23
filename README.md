@@ -14,7 +14,13 @@ audience, and expiry with 60 seconds of leeway. The first check that fails is th
 `resource::KeyCache` over `resource::HttpsKeySource` holds the issuer's key set: fetched over https (plain http only
 to a loopback address), at most 64 KiB, kept for the `max-age` the issuer sends (five minutes when it sends none),
 fetched again at once when a token names a key the set does not hold, never more than once every 10 seconds, and
-used for up to a day while the issuer cannot be reached. Signing users in comes next.
+used for up to a day while the issuer cannot be reached.
+
+`relying::begin` starts a sign-in: the address to send the user to, with PKCE (S256), a 128-bit `state` and a
+`nonce`, and the `Pending` request to keep under its `state`. `Pending::accept` takes the query the user returns with
+and gives the code only when it carries this request's `state` (compared in constant time) and names this issuer in
+`iss`; an error answer comes back as its code alone, never its text. Exchanging the code, refreshing and DPoP come
+next.
 
 ## Building and checking
 
