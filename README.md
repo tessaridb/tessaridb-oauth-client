@@ -22,7 +22,12 @@ and gives the code only when it carries this request's `state` (compared in cons
 `iss`; an error answer comes back as its code alone, never its text. `relying::validate_id_token` checks the ID token
 of the sign-in: the issuer's signature, a `typ` that is not an access token's or a proof's, the issuer, this client
 in `aud` (and in `azp` when there are several audiences), its time, and the `nonce` of the request it answers.
-Exchanging the code, refreshing and DPoP come next.
+
+`relying::TokenEndpoint` exchanges the code for tokens (with the request's PKCE verifier, the redirect address and
+the resource) and a refresh token for the next set. A failure comes back classified: `SessionOver` when the code,
+the refresh token or the client is no longer good, so the user signs in again; `Retryable` when the issuer did not
+answer or was overloaded; `Rejected` or `Malformed` otherwise. The library never retries a call itself, and a
+`TokenSet` never prints its tokens. DPoP comes next.
 
 ## Building and checking
 

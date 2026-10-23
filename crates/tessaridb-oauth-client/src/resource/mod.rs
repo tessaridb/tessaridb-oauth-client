@@ -17,6 +17,7 @@ pub(crate) use expectations::LEEWAY_SECS;
 pub use keys::KeySet;
 pub use refusal::Refusal;
 pub use source::{Fetched, HttpsKeySource, KeySource};
+pub(crate) use source::{Unread, loopback, read_limited};
 pub use token::AccessToken;
 pub use validate::validate;
 pub(crate) use validate::verified_payload;

@@ -39,8 +39,8 @@ const ERROR_CODES: [&str; 11] = [
 pub struct Client {
     issuer: String,
     authorization_endpoint: Url,
-    client_id: String,
-    redirect_uri: Url,
+    pub(super) client_id: String,
+    pub(super) redirect_uri: Url,
 }
 
 /// What one in-flight request keeps until its return: the caller stores it under [`Pending::state`].

@@ -36,7 +36,7 @@ pub struct HttpsKeySource {
     client: reqwest::Client,
 }
 
-fn loopback(url: &Url) -> bool {
+pub(crate) fn loopback(url: &Url) -> bool {
     match url.host_str() {
         Some("localhost") => true,
         Some(host) => host
@@ -46,6 +46,35 @@ fn loopback(url: &Url) -> bool {
             .is_ok_and(|address| address.is_loopback()),
         None => false,
     }
+}
+
+/// Why an answer's body was not read.
+pub(crate) enum Unread {
+    /// It announced, or sent, more than the limit.
+    TooLarge,
+    /// The connection failed before the body was whole.
+    Broken,
+}
+
+/// The body of `answer`, refused past `limit` bytes whether or not it announced its length.
+pub(crate) async fn read_limited(
+    mut answer: reqwest::Response,
+    limit: usize,
+) -> std::result::Result<Vec<u8>, Unread> {
+    if answer
+        .content_length()
+        .is_some_and(|length| length > u64::try_from(limit).unwrap_or(u64::MAX))
+    {
+        return Err(Unread::TooLarge);
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = answer.chunk().await.map_err(|_| Unread::Broken)? {
+        if body.len().saturating_add(chunk.len()) > limit {
+            return Err(Unread::TooLarge);
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
 }
 
 /// The `max-age` of a `Cache-Control` value.
@@ -83,7 +112,7 @@ impl HttpsKeySource {
 
 impl KeySource for HttpsKeySource {
     async fn fetch(&self) -> Result<Fetched> {
-        let mut answer = self
+        let answer = self
             .client
             .get(self.url.clone())
             .send()
@@ -92,28 +121,20 @@ impl KeySource for HttpsKeySource {
         if answer.status() != StatusCode::OK {
             return Err(Error::Fetch("the issuer answered with an error"));
         }
-        if answer
-            .content_length()
-            .is_some_and(|length| length > u64::try_from(MAX_KEY_SET_BYTES).unwrap_or(u64::MAX))
-        {
-            return Err(Error::Fetch("the key set is larger than this client reads"));
-        }
         let max_age = answer
             .headers()
             .get(CACHE_CONTROL)
             .and_then(|value| value.to_str().ok())
             .and_then(max_age);
-        let mut body = Vec::new();
-        while let Some(chunk) = answer
-            .chunk()
-            .await
-            .map_err(|_| Error::Fetch("the key set did not arrive whole"))?
-        {
-            if body.len().saturating_add(chunk.len()) > MAX_KEY_SET_BYTES {
-                return Err(Error::Fetch("the key set is larger than this client reads"));
-            }
-            body.extend_from_slice(&chunk);
-        }
+        let body =
+            read_limited(answer, MAX_KEY_SET_BYTES)
+                .await
+                .map_err(|unread| match unread {
+                    Unread::TooLarge => {
+                        Error::Fetch("the key set is larger than this client reads")
+                    }
+                    Unread::Broken => Error::Fetch("the key set did not arrive whole"),
+                })?;
         let body = String::from_utf8(body).map_err(|_| Error::Fetch("the key set is not text"))?;
         Ok(Fetched { body, max_age })
     }
