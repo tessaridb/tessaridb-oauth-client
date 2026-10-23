@@ -2,5 +2,7 @@
 //! exchanged for it.
 
 mod flow;
+mod id_token;
 
 pub use flow::{Client, Pending, ReturnRefusal, begin};
+pub use id_token::{IdRefusal, IdToken, validate_id_token};

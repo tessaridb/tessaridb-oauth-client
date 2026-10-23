@@ -83,17 +83,19 @@ fn names(audience: &Audience, expected: &str) -> bool {
     }
 }
 
-/// `token`, verified under `keys` and judged against `expect` at `now` (Unix seconds).
+/// The payload of compact JWS `token` once its header names a type `is_type` accepts, an algorithm among
+/// `algorithms` and a key of `keys` for it, and its signature verifies under that key; the claims are the caller's.
 ///
 /// # Errors
 ///
-/// The [`Refusal`] of the first check it fails.
-pub fn validate(
+/// [`Refusal::Malformed`], [`Refusal::WrongType`], [`Refusal::AlgorithmNotAllowed`], [`Refusal::UnknownKey`] or
+/// [`Refusal::BadSignature`], for the first of those checks it fails, in that order.
+pub(crate) fn verified_payload(
     token: &str,
     keys: &KeySet,
-    expect: &Expectations,
-    now: u64,
-) -> Result<AccessToken, Refusal> {
+    algorithms: &[Algorithm],
+    is_type: fn(Option<&str>) -> bool,
+) -> Result<Vec<u8>, Refusal> {
     let mut parts = token.split('.');
     let (Some(header), Some(payload), Some(signature), None) =
         (parts.next(), parts.next(), parts.next(), parts.next())
@@ -104,11 +106,10 @@ pub fn validate(
     if head.crit.is_some() {
         return Err(Refusal::Malformed);
     }
-    if !is_access_token(head.typ.as_deref()) {
+    if !is_type(head.typ.as_deref()) {
         return Err(Refusal::WrongType);
     }
-    let algorithm = expect
-        .algorithms
+    let algorithm = algorithms
         .iter()
         .copied()
         .find(|algorithm| algorithm.name() == head.alg)
@@ -123,7 +124,24 @@ pub fn validate(
         .map(|(input, _)| input)
         .ok_or(Refusal::Malformed)?;
     verified(key, signed, signature)?;
-    let claims: Claims = decoded(payload)?;
+    URL_SAFE_NO_PAD
+        .decode(payload)
+        .map_err(|_| Refusal::Malformed)
+}
+
+/// `token`, verified under `keys` and judged against `expect` at `now` (Unix seconds).
+///
+/// # Errors
+///
+/// The [`Refusal`] of the first check it fails.
+pub fn validate(
+    token: &str,
+    keys: &KeySet,
+    expect: &Expectations,
+    now: u64,
+) -> Result<AccessToken, Refusal> {
+    let payload = verified_payload(token, keys, &expect.algorithms, is_access_token)?;
+    let claims: Claims = serde_json::from_slice(&payload).map_err(|_| Refusal::Malformed)?;
     let (Some(iss), Some(aud), Some(exp), Some(iat), Some(sub), Some(client_id), Some(jti)) = (
         claims.iss,
         claims.aud,

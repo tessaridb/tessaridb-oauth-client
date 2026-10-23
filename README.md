@@ -19,8 +19,10 @@ used for up to a day while the issuer cannot be reached.
 `relying::begin` starts a sign-in: the address to send the user to, with PKCE (S256), a 128-bit `state` and a
 `nonce`, and the `Pending` request to keep under its `state`. `Pending::accept` takes the query the user returns with
 and gives the code only when it carries this request's `state` (compared in constant time) and names this issuer in
-`iss`; an error answer comes back as its code alone, never its text. Exchanging the code, refreshing and DPoP come
-next.
+`iss`; an error answer comes back as its code alone, never its text. `relying::validate_id_token` checks the ID token
+of the sign-in: the issuer's signature, a `typ` that is not an access token's or a proof's, the issuer, this client
+in `aud` (and in `azp` when there are several audiences), its time, and the `nonce` of the request it answers.
+Exchanging the code, refreshing and DPoP come next.
 
 ## Building and checking
 

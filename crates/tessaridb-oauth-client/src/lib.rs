@@ -4,5 +4,7 @@
 mod error;
 pub mod relying;
 pub mod resource;
+#[cfg(test)]
+mod test_keys;
 
 pub use error::{Error, Result};

@@ -10,9 +10,9 @@ pub const LEEWAY_SECS: u64 = 60;
 /// The issuer a token must come from, the audience it must name and the algorithms it may be signed with.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Expectations {
-    pub(super) issuer: String,
-    pub(super) audience: String,
-    pub(super) algorithms: Vec<Algorithm>,
+    pub(crate) issuer: String,
+    pub(crate) audience: String,
+    pub(crate) algorithms: Vec<Algorithm>,
 }
 
 impl Expectations {
