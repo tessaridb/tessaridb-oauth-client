@@ -6,7 +6,11 @@ Connect, RFC 9068 access tokens, RFC 7517 key sets) and depends on no server cod
 
 ## Status
 
-In development, no release. Nothing here is usable yet.
+In development, no release. What works: `resource::validate` checks an access token against a key set the caller
+has fetched and parsed with `resource::KeySet::parse`, in this order: its type (`at+jwt`), an algorithm the resource
+accepts (ES256 or EdDSA, never `none`), the key by `kid` in the issuer's set, the signature, the issuer, the
+audience, and expiry with 60 seconds of leeway. The first check that fails is the refusal. Fetching and caching the
+key set, and signing users in, come next.
 
 ## Building and checking
 
