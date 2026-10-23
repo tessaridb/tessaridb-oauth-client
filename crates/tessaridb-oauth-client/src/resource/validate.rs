@@ -49,7 +49,7 @@ struct Claims {
     cnf: Option<Confirmation>,
 }
 
-fn decoded<T: serde::de::DeserializeOwned>(part: &str) -> Result<T, Refusal> {
+pub(super) fn decoded<T: serde::de::DeserializeOwned>(part: &str) -> Result<T, Refusal> {
     let bytes = URL_SAFE_NO_PAD
         .decode(part)
         .map_err(|_| Refusal::Malformed)?;
@@ -63,7 +63,7 @@ fn is_access_token(typ: Option<&str>) -> bool {
     })
 }
 
-fn verified(key: &PublicKey, input: &str, signature: &str) -> Result<(), Refusal> {
+pub(super) fn verified(key: &PublicKey, input: &str, signature: &str) -> Result<(), Refusal> {
     let signature = URL_SAFE_NO_PAD
         .decode(signature)
         .map_err(|_| Refusal::Malformed)?;

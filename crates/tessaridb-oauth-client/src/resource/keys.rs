@@ -12,7 +12,7 @@ use crate::{Error, Result};
 /// Bytes of one P-256 coordinate, and of an Ed25519 public key.
 const COORDINATE_LEN: usize = 32;
 /// The SEC 1 tag of an uncompressed elliptic-curve point.
-const UNCOMPRESSED: u8 = 0x04;
+pub(super) const UNCOMPRESSED: u8 = 0x04;
 
 /// One public key of the set.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,7 +46,7 @@ struct Entry {
     y: Option<String>,
 }
 
-fn coordinate(value: Option<&String>) -> Result<Vec<u8>> {
+pub(super) fn coordinate(value: Option<&String>) -> Result<Vec<u8>> {
     let bytes = value
         .map(|text| URL_SAFE_NO_PAD.decode(text))
         .ok_or(Error::KeySet("a coordinate is missing"))?

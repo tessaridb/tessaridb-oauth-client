@@ -17,6 +17,7 @@ pub struct AccessToken {
     pub issued_at: u64,
     /// The token's unique identifier.
     pub jti: String,
-    /// The thumbprint of the key a DPoP proof must be signed with (RFC 9449 section 6), when the token is bound.
+    /// The thumbprint of the key a DPoP proof must be signed with (RFC 9449 section 6), when the token is bound; such a
+    /// token is accepted only with [`validate_proof`](super::validate_proof), never as a bearer token.
     pub confirmation: Option<String>,
 }

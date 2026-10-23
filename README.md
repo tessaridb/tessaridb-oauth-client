@@ -32,8 +32,13 @@ answer or was overloaded; `Rejected` or `Malformed` otherwise. The library never
 `relying::DpopKey` is the client's DPoP key (RFC 9449): an ES256 key held in memory and never written out. Passed
 to an exchange or a refresh, it binds the tokens to the key with a proof for the token endpoint; `DpopKey::proof`
 makes the proof for a call to an API, carrying the hash of the access token it presents. Proofs name the method and
-the address without its query or fragment, and each has its own `jti`. Checking a bound token's proof at an API
-comes next.
+the address without its query or fragment, and each has its own `jti`.
+
+At an API, a token whose `confirmation` is set is bound to a key and is accepted only through
+`resource::validate_proof`, never as a bearer token. The proof must be a `dpop+jwt` signed with an accepted algorithm
+by the key it carries, that key's RFC 7638 thumbprint must be the token's, and it must name this method and address,
+be no more than 60 seconds from now, and carry this token's hash. The proof's `jti` comes back for the API to
+remember and refuse if it is used again; keeping that record is the API's job.
 
 ## Building and checking
 
