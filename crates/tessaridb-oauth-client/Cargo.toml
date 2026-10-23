@@ -20,4 +20,5 @@ url.workspace = true
 subtle.workspace = true
 
 [dev-dependencies]
+reqwest = { workspace = true, features = ["cookies", "json"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "io-util", "test-util"] }

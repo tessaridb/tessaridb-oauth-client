@@ -49,6 +49,21 @@ cargo fmt --all --check
 cargo deny check
 ```
 
+The end-to-end test runs the library against a running TessariDB OAuth server, over its published endpoints only:
+it registers a public client and a user through the admin console, signs the user in, binds the tokens to a DPoP
+key, checks them as an API would, refreshes them, and checks that a refresh token or code presented again ends the
+session. It needs an operator of the company with the `users` and `clients` roles whose password is set and who has
+no authenticator app yet (the test adds one, which the console asks for), so each run needs a fresh operator:
+
+```sh
+TESSARIDB_OAUTH_E2E_ISSUER=https://localhost:8443/acme \
+TESSARIDB_OAUTH_E2E_ADMIN=http://127.0.0.1:9443/admin/acme \
+TESSARIDB_OAUTH_E2E_OPERATOR=ops@acme.example TESSARIDB_OAUTH_E2E_PASSWORD="$OPERATOR_PASSWORD" \
+SSL_CERT_FILE=ca.pem cargo test --test live -- --ignored
+```
+
+`SSL_CERT_FILE` names the authority of a server certificate that the system does not already trust.
+
 ## Licence
 
 Apache-2.0, see [LICENSE](LICENSE).
