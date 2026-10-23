@@ -3,14 +3,15 @@
 //! (RFC 8707). A failure is classified for the caller and never retried here: an answer that ends the session must
 //! send the user back to sign in, because retrying it hides the very event a reused refresh token raises.
 
-use std::fmt;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use reqwest::header::{ACCEPT, CONTENT_TYPE};
 use reqwest::{StatusCode, Url};
 use serde::Deserialize;
 
+use super::dpop::DpopKey;
 use super::flow::{Client, Pending};
+use super::tokens::{TokenSet, TokenType};
 use crate::resource::{Unread, loopback, read_limited};
 use crate::{Error, Result};
 
@@ -29,26 +30,6 @@ const REQUEST_REFUSALS: [&str; 4] = [
     "invalid_target",
 ];
 
-/// How the access token is presented (RFC 6750, RFC 9449).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TokenType {
-    /// In an `Authorization: Bearer` header.
-    Bearer,
-    /// In an `Authorization: DPoP` header with a proof of the bound key.
-    DPoP,
-}
-
-/// What the token endpoint issued. Its `Debug` names which tokens it holds and never their values.
-#[derive(Clone, PartialEq, Eq)]
-pub struct TokenSet {
-    access_token: String,
-    token_type: TokenType,
-    expires_in: Option<u64>,
-    refresh_token: Option<String>,
-    id_token: Option<String>,
-    scope: Option<String>,
-}
-
 /// Why the token endpoint did not issue tokens.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ExchangeRefusal {
@@ -64,6 +45,9 @@ pub enum ExchangeRefusal {
     /// An answer that cannot be read as a token answer.
     #[error("the issuer's answer is malformed")]
     Malformed,
+    /// No DPoP proof could be made, so nothing was sent.
+    #[error("no proof of the client's key could be made")]
+    Proof,
 }
 
 #[derive(Deserialize)]
@@ -85,65 +69,6 @@ struct Refused {
 pub struct TokenEndpoint {
     url: Url,
     client: reqwest::Client,
-}
-
-impl TokenSet {
-    /// The access token.
-    #[must_use]
-    pub fn access_token(&self) -> &str {
-        &self.access_token
-    }
-
-    /// How the access token is presented.
-    #[must_use]
-    pub fn token_type(&self) -> TokenType {
-        self.token_type
-    }
-
-    /// Seconds the access token lives, when the issuer said.
-    #[must_use]
-    pub fn expires_in(&self) -> Option<u64> {
-        self.expires_in
-    }
-
-    /// The refresh token, when one was issued; it replaces the one presented.
-    #[must_use]
-    pub fn refresh_token(&self) -> Option<&str> {
-        self.refresh_token.as_deref()
-    }
-
-    /// The ID token, for a sign-in that asked for `openid`; it is validated before it is believed.
-    #[must_use]
-    pub fn id_token(&self) -> Option<&str> {
-        self.id_token.as_deref()
-    }
-
-    /// The scopes granted, when the issuer listed them.
-    #[must_use]
-    pub fn scope(&self) -> Option<&str> {
-        self.scope.as_deref()
-    }
-}
-
-impl fmt::Debug for TokenSet {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let held = |token: &Option<String>| {
-            if token.is_some() {
-                "[redacted]"
-            } else {
-                "none"
-            }
-        };
-        formatter
-            .debug_struct("TokenSet")
-            .field("access_token", &"[redacted]")
-            .field("token_type", &self.token_type)
-            .field("expires_in", &self.expires_in)
-            .field("refresh_token", &held(&self.refresh_token))
-            .field("id_token", &held(&self.id_token))
-            .field("scope", &self.scope)
-            .finish()
-    }
 }
 
 fn known(codes: &[&'static str], code: &str) -> Option<&'static str> {
@@ -205,7 +130,7 @@ impl TokenEndpoint {
         Ok(Self { url, client })
     }
 
-    /// Exchange the `code` of `pending`'s return for tokens, for `resource` when named.
+    /// Exchange the `code` of `pending`'s return for tokens, for `resource` when named, bound to `dpop` when given.
     ///
     /// # Errors
     ///
@@ -216,6 +141,7 @@ impl TokenEndpoint {
         pending: &Pending,
         code: &str,
         resource: Option<&str>,
+        dpop: Option<&DpopKey>,
     ) -> std::result::Result<TokenSet, ExchangeRefusal> {
         let mut form = vec![
             ("grant_type", "authorization_code"),
@@ -225,11 +151,11 @@ impl TokenEndpoint {
             ("code_verifier", pending.verifier()),
         ];
         form.extend(resource.map(|resource| ("resource", resource)));
-        self.post(&form).await
+        self.post(&form, dpop).await
     }
 
-    /// Exchange `refresh_token` for the next set, for `resource` when named. The answer's refresh token replaces
-    /// the one presented, which the issuer has now retired.
+    /// Exchange `refresh_token` for the next set, for `resource` when named, proving `dpop` when the tokens are
+    /// bound to it. The answer's refresh token replaces the one presented, which the issuer has now retired.
     ///
     /// # Errors
     ///
@@ -239,6 +165,7 @@ impl TokenEndpoint {
         client: &Client,
         refresh_token: &str,
         resource: Option<&str>,
+        dpop: Option<&DpopKey>,
     ) -> std::result::Result<TokenSet, ExchangeRefusal> {
         let mut form = vec![
             ("grant_type", "refresh_token"),
@@ -246,18 +173,33 @@ impl TokenEndpoint {
             ("client_id", client.client_id.as_str()),
         ];
         form.extend(resource.map(|resource| ("resource", resource)));
-        self.post(&form).await
+        self.post(&form, dpop).await
     }
 
-    async fn post(&self, form: &[(&str, &str)]) -> std::result::Result<TokenSet, ExchangeRefusal> {
+    async fn post(
+        &self,
+        form: &[(&str, &str)],
+        dpop: Option<&DpopKey>,
+    ) -> std::result::Result<TokenSet, ExchangeRefusal> {
         let body = url::form_urlencoded::Serializer::new(String::new())
             .extend_pairs(form)
             .finish();
-        let answer = self
+        let mut request = self
             .client
             .post(self.url.clone())
             .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-            .header(ACCEPT, "application/json")
+            .header(ACCEPT, "application/json");
+        if let Some(key) = dpop {
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_err(|_| ExchangeRefusal::Proof)?
+                .as_secs();
+            let proof = key
+                .proof("POST", self.url.as_str(), None, now)
+                .map_err(|_| ExchangeRefusal::Proof)?;
+            request = request.header("DPoP", proof);
+        }
+        let answer = request
             .body(body)
             .send()
             .await

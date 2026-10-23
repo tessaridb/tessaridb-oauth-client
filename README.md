@@ -27,7 +27,13 @@ in `aud` (and in `azp` when there are several audiences), its time, and the `non
 the resource) and a refresh token for the next set. A failure comes back classified: `SessionOver` when the code,
 the refresh token or the client is no longer good, so the user signs in again; `Retryable` when the issuer did not
 answer or was overloaded; `Rejected` or `Malformed` otherwise. The library never retries a call itself, and a
-`TokenSet` never prints its tokens. DPoP comes next.
+`TokenSet` never prints its tokens.
+
+`relying::DpopKey` is the client's DPoP key (RFC 9449): an ES256 key held in memory and never written out. Passed
+to an exchange or a refresh, it binds the tokens to the key with a proof for the token endpoint; `DpopKey::proof`
+makes the proof for a call to an API, carrying the hash of the access token it presents. Proofs name the method and
+the address without its query or fragment, and each has its own `jti`. Checking a bound token's proof at an API
+comes next.
 
 ## Building and checking
 

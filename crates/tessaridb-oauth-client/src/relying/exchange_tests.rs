@@ -2,7 +2,10 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
-use super::{ExchangeRefusal, TokenEndpoint, TokenSet, TokenType};
+use super::{ExchangeRefusal, TokenEndpoint};
+use crate::relying::DpopKey;
+use crate::relying::TokenType;
+use crate::relying::dpop::tests::verified;
 use crate::relying::{Client, Pending, begin};
 
 const ISSUER: &str = "https://id.example.com/acme";
@@ -97,7 +100,7 @@ async fn a_code_is_exchanged_with_its_verifier_redirect_and_resource() {
     let pending = pending();
     let (endpoint, request) = serving("200 OK", ISSUED).await;
     let tokens = endpoint
-        .exchange(&client(), &pending, "c-1", Some(RESOURCE))
+        .exchange(&client(), &pending, "c-1", Some(RESOURCE), None)
         .await
         .expect("issued");
     let request = request.await.expect("a request");
@@ -134,7 +137,7 @@ async fn a_refresh_presents_the_token_and_the_client_and_nothing_of_the_sign_in(
     )
     .await;
     let tokens = endpoint
-        .refresh(&client(), "rt-2", None)
+        .refresh(&client(), "rt-2", None, None)
         .await
         .expect("issued");
     assert_eq!(
@@ -159,7 +162,7 @@ async fn a_spent_grant_or_a_refused_client_ends_the_session() {
     ] {
         let body = format!(r#"{{"error":"{code}","error_description":"<script>"}}"#);
         let (endpoint, _request) = serving(status, &body).await;
-        let refused = endpoint.refresh(&client(), "rt-2", None).await;
+        let refused = endpoint.refresh(&client(), "rt-2", None, None).await;
         assert_eq!(refused, Err(ExchangeRefusal::SessionOver(code)), "{code}");
         assert!(
             !format!("{refused:?}").contains("script"),
@@ -172,12 +175,12 @@ async fn a_spent_grant_or_a_refused_client_ends_the_session() {
 async fn a_refused_request_is_named_and_an_unknown_code_is_other() {
     let (endpoint, _request) = serving("400 Bad Request", r#"{"error":"invalid_scope"}"#).await;
     assert_eq!(
-        endpoint.refresh(&client(), "rt-2", None).await,
+        endpoint.refresh(&client(), "rt-2", None, None).await,
         Err(ExchangeRefusal::Rejected("invalid_scope"))
     );
     let (endpoint, _request) = serving("400 Bad Request", r#"{"error":"<b>x"}"#).await;
     assert_eq!(
-        endpoint.refresh(&client(), "rt-2", None).await,
+        endpoint.refresh(&client(), "rt-2", None, None).await,
         Err(ExchangeRefusal::Rejected("other"))
     );
 }
@@ -191,7 +194,7 @@ async fn an_overloaded_or_absent_issuer_is_retryable() {
     ] {
         let (endpoint, _request) = serving(status, r#"{"error":"invalid_grant"}"#).await;
         assert_eq!(
-            endpoint.refresh(&client(), "rt-2", None).await,
+            endpoint.refresh(&client(), "rt-2", None, None).await,
             Err(ExchangeRefusal::Retryable),
             "{status}"
         );
@@ -201,7 +204,7 @@ async fn an_overloaded_or_absent_issuer_is_retryable() {
     drop(listener);
     let absent = TokenEndpoint::new(&format!("http://{address}/token")).expect("an endpoint");
     assert_eq!(
-        absent.refresh(&client(), "rt-2", None).await,
+        absent.refresh(&client(), "rt-2", None, None).await,
         Err(ExchangeRefusal::Retryable)
     );
 }
@@ -218,7 +221,7 @@ async fn an_answer_that_is_not_a_token_answer_is_malformed() {
     ] {
         let (endpoint, _request) = serving(status, body).await;
         assert_eq!(
-            endpoint.refresh(&client(), "rt-2", None).await,
+            endpoint.refresh(&client(), "rt-2", None, None).await,
             Err(ExchangeRefusal::Malformed),
             "{status} {body}"
         );
@@ -229,26 +232,9 @@ async fn an_answer_that_is_not_a_token_answer_is_malformed() {
     );
     let (endpoint, _request) = serving("200 OK", &huge).await;
     assert_eq!(
-        endpoint.refresh(&client(), "rt-2", None).await,
+        endpoint.refresh(&client(), "rt-2", None, None).await,
         Err(ExchangeRefusal::Malformed),
         "an answer past the ceiling is not read"
-    );
-}
-
-#[tokio::test]
-async fn a_token_set_never_prints_its_tokens() {
-    let (endpoint, _request) = serving("200 OK", ISSUED).await;
-    let tokens: TokenSet = endpoint
-        .refresh(&client(), "rt-2", None)
-        .await
-        .expect("issued");
-    let printed = format!("{tokens:?}");
-    for secret in ["at-1", "rt-2", "id-1"] {
-        assert!(!printed.contains(secret), "{printed}");
-    }
-    assert!(
-        printed.contains("Bearer") && printed.contains("openid api:read"),
-        "{printed}"
     );
 }
 
@@ -268,4 +254,46 @@ fn only_https_or_loopback_http_carries_a_code() {
     ] {
         assert!(TokenEndpoint::new(accepted).is_ok(), "{accepted}");
     }
+}
+
+#[tokio::test]
+async fn a_bound_exchange_carries_a_proof_for_the_token_endpoint() {
+    let key = DpopKey::generate().expect("a key");
+    let (endpoint, request) = serving("200 OK", ISSUED).await;
+    endpoint
+        .exchange(&client(), &pending(), "c-1", None, Some(&key))
+        .await
+        .expect("issued");
+    let request = request.await.expect("a request");
+    let proof = request
+        .lines()
+        .find_map(|line| line.strip_prefix("dpop: "))
+        .expect("a DPoP header");
+    let (_, claims) = verified(proof);
+    assert_eq!(claims["htm"], "POST");
+    let address = request
+        .lines()
+        .find_map(|line| line.strip_prefix("host: "))
+        .expect("a host");
+    assert_eq!(
+        claims["htu"],
+        format!("http://{address}/acme/oauth2/token").as_str()
+    );
+    assert!(
+        claims.get("ath").is_none(),
+        "the token endpoint is shown no access token"
+    );
+    let (endpoint, request) = serving("200 OK", ISSUED).await;
+    endpoint
+        .refresh(&client(), "rt-2", None, None)
+        .await
+        .expect("issued");
+    assert!(
+        !request
+            .await
+            .expect("a request")
+            .to_ascii_lowercase()
+            .contains("\r\ndpop:"),
+        "an unbound call sends no proof"
+    );
 }
