@@ -1,0 +1,12 @@
+[package]
+name = "tessaridb-oauth-client"
+version = "0.1.0"
+description = "Validate TessariDB OAuth access tokens and sign users in through a TessariDB OAuth issuer"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+thiserror.workspace = true
