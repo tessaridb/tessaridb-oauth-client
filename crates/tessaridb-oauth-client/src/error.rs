@@ -9,6 +9,9 @@ pub enum Error {
     /// A key set that is not JSON of the RFC 7517 shape, or holds a key of a known kind that cannot be read.
     #[error("the key set is malformed: {0}")]
     KeySet(&'static str),
+    /// The key set could not be fetched: refused address, no answer, an error answer, or more than this client reads.
+    #[error("the key set could not be fetched: {0}")]
+    Fetch(&'static str),
 }
 
 /// The result of an operation in this crate.
