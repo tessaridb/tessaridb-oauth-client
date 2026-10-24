@@ -14,16 +14,14 @@ mod totp;
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use reqwest::StatusCode;
-use serde_json::{Value, json};
+use serde_json::json;
 use tessaridb_oauth_client::relying::{
     Client, DpopKey, ExchangeRefusal, ReturnRefusal, TokenEndpoint, TokenType, begin,
     validate_id_token,
 };
 use tessaridb_oauth_client::resource::{
-    Algorithm, Expectations, HttpsKeySource, KeyCache, ProofRefusal, Refusal, validate,
+    Algorithm, Expectations, HttpsKeySource, KeyCache, ProofRefusal, Refusal, key_id, validate,
     validate_proof,
 };
 use url::Url;
@@ -55,10 +53,7 @@ fn now() -> u64 {
 
 /// The `kid` a compact JWS names.
 fn kid(token: &str) -> String {
-    let header = token.split('.').next().expect("a header");
-    let header: Value =
-        serde_json::from_slice(&URL_SAFE_NO_PAD.decode(header).expect("base64url")).expect("JSON");
-    header["kid"].as_str().expect("a kid").to_owned()
+    key_id(token).expect("a kid")
 }
 
 /// The operator adds an authenticator app to its account, which the console asks for: the app's secret.

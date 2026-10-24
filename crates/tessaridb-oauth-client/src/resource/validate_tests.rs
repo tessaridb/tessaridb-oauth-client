@@ -3,7 +3,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
 use serde_json::json;
 
-use super::{Algorithm, Expectations, KeySet, Refusal, validate};
+use super::{Algorithm, Expectations, KeySet, Refusal, key_id, validate};
 use crate::test_keys::Signer;
 
 const ISSUER: &str = "https://id.example.com/acme";
@@ -160,6 +160,24 @@ fn the_key_is_found_only_in_the_issuers_set() {
         validate(&forged, &keys, &expectations, NOW),
         Err(Refusal::BadSignature)
     );
+}
+
+#[test]
+fn the_key_id_is_read_to_pick_the_key_set_and_vouches_for_nothing() {
+    let signer = Signer::es256();
+    let body = claims(ISSUER, AUDIENCE, NOW + 300);
+    assert_eq!(
+        key_id(&signer.sign(&header("ES256", "k1"), &body)),
+        Ok("k1".to_owned())
+    );
+    // Read before any check: a token another key signed still names the key it claims.
+    let forged = Signer::es256().sign(&header("ES256", "k1"), &body);
+    assert_eq!(key_id(&forged), Ok("k1".to_owned()));
+    let no_kid = signer.sign(r#"{"alg":"ES256","typ":"at+jwt"}"#, &body);
+    assert_eq!(key_id(&no_kid), Err(Refusal::UnknownKey));
+    for bad in ["", "a.b", "a.b.c.d", "!!.??.**"] {
+        assert_eq!(key_id(bad), Err(Refusal::Malformed), "{bad}");
+    }
 }
 
 #[test]

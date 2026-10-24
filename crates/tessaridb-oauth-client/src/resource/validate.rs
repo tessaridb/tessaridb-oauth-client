@@ -83,6 +83,24 @@ fn names(audience: &Audience, expected: &str) -> bool {
     }
 }
 
+/// The `kid` compact JWS `token` names, read so the caller can fetch the key set that holds it before [`validate`].
+/// Nothing is checked: a forged token names a key as readily as a genuine one, and only [`validate`] says which it is.
+///
+/// # Errors
+///
+/// [`Refusal::Malformed`] when the token is not three parts or its header is not JSON; [`Refusal::UnknownKey`] when
+/// the header names no key.
+pub fn key_id(token: &str) -> Result<String, Refusal> {
+    let mut parts = token.split('.');
+    let (Some(header), Some(_), Some(_), None) =
+        (parts.next(), parts.next(), parts.next(), parts.next())
+    else {
+        return Err(Refusal::Malformed);
+    };
+    let head: Header = decoded(header)?;
+    head.kid.ok_or(Refusal::UnknownKey)
+}
+
 /// The payload of compact JWS `token` once its header names a type `is_type` accepts, an algorithm among
 /// `algorithms` and a key of `keys` for it, and its signature verifies under that key; the claims are the caller's.
 ///
