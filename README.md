@@ -1,8 +1,36 @@
+<div align="center">
+
+<img src="assets/logo/tessaridb-oauth-mark-256.png" alt="" width="112" height="112">
+
 # TessariDB OAuth client
 
-A Rust library for applications that use a TessariDB OAuth issuer: an API checks the access tokens it is handed, and
-a web application signs its users in. It talks to the issuer over the published protocol (OAuth 2.1, OpenID
-Connect, RFC 9068 access tokens, RFC 7517 key sets) and depends on no server code.
+**The application side of TessariDB OAuth: check the tokens your API is handed, and sign your users in.**
+
+A Rust library for applications that use a TessariDB OAuth issuer. An API validates the access tokens it receives;
+a web application signs its users in and keeps their tokens. It talks to the issuer over the published protocol
+(OAuth 2.1, OpenID Connect, RFC 9068 access tokens, RFC 7517 key sets) and depends on no server code.
+
+[![status](https://img.shields.io/badge/status-in%20development-6B5FD1?style=flat-square)](#status)
+[![licence](https://img.shields.io/badge/licence-Apache--2.0-6B5FD1?style=flat-square)](LICENSE)
+[![rust](https://img.shields.io/badge/rust-1.98%2B-6B5FD1?style=flat-square)](#building-and-checking)
+
+[oauth.tessaridb.com](https://oauth.tessaridb.com) · [docs](https://docs.tessaridb.com/oauth) ·
+[tessaridb.com](https://tessaridb.com) · [TessariDB OAuth](https://github.com/tessaridb/tessaridb-oauth)
+
+</div>
+
+> [!NOTE]
+> **No release yet.** Everything listed under [Status](#status) is covered by tests, including a run against a
+> running server; the API may change before the first release.
+
+## What it is for
+
+- **An API that accepts access tokens** checks each one in a fixed order against the issuer's published key set,
+  which the library fetches, caches and refreshes when a token names a key it has not seen.
+- **A web application that signs users in** starts the request with PKCE, checks what comes back, exchanges the code,
+  validates the ID token and refreshes the tokens.
+- **Tokens bound to a key** (DPoP): the client proves it holds the key, and the API accepts such a token only with
+  the proof.
 
 ## Status
 
