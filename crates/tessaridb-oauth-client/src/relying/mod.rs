@@ -1,12 +1,14 @@
 //! The relying party's half: a user sent to the issuer to sign in, the return checked before anything is exchanged
 //! for it, the code exchanged for tokens and those tokens refreshed.
 
+mod discovery;
 mod dpop;
 mod exchange;
 mod flow;
 mod id_token;
 mod tokens;
 
+pub use discovery::{Metadata, discover};
 pub use dpop::DpopKey;
 pub use exchange::{ExchangeRefusal, TokenEndpoint};
 pub use flow::{Client, Pending, ReturnRefusal, begin};

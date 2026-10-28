@@ -12,6 +12,9 @@ pub enum Error {
     /// The key set could not be fetched: refused address, no answer, an error answer, or more than this client reads.
     #[error("the key set could not be fetched: {0}")]
     Fetch(&'static str),
+    /// The issuer's metadata could not be discovered or was not acceptable.
+    #[error("the issuer could not be discovered: {0}")]
+    Discovery(&'static str),
     /// A client registration this crate cannot send users with.
     #[error("the client is not usable: {0}")]
     Client(&'static str),

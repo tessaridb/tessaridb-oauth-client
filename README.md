@@ -45,6 +45,10 @@ fetched again at once when a token names a key the set does not hold, never more
 used for up to a day while the issuer cannot be reached. `resource::key_id` reads the `kid` a token names, so an API
 asks the cache for the set that holds it before calling `validate`; it checks nothing itself.
 
+`relying::discover` reads an issuer's endpoints from `{issuer}/.well-known/openid-configuration` (OpenID
+Connect Discovery 1.0): over https (plain http only to a loopback address), at most 64 KiB, no redirects, and only
+when the document names exactly the configured issuer and every endpoint it lists is https with no credentials.
+
 `relying::begin` starts a sign-in: the address to send the user to, with PKCE (S256), a 128-bit `state` and a
 `nonce`, and the `Pending` request to keep under its `state`. `Pending::accept` takes the query the user returns with
 and gives the code only when it carries this request's `state` (compared in constant time) and names this issuer in
