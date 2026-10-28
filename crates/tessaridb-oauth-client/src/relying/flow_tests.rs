@@ -209,3 +209,20 @@ fn a_client_is_registered_with_https_addresses() {
         "a loopback redirect for a native app"
     );
 }
+
+#[test]
+fn a_request_kept_in_a_store_between_the_legs_accepts_its_own_return_only() {
+    let (_, pending) = started();
+    let kept = serde_json::to_string(&pending).expect("serialized");
+    let restored: Pending = serde_json::from_str(&kept).expect("read back");
+    assert_eq!(restored, pending);
+    let state = pending.state().to_owned();
+    assert_eq!(
+        restored.accept(&format!("code=abc&state={state}&iss={ISSUER}")),
+        Ok("abc".to_owned())
+    );
+    assert_eq!(
+        restored.accept(&format!("code=abc&state=another&iss={ISSUER}")),
+        Err(ReturnRefusal::StateMismatch)
+    );
+}

@@ -43,8 +43,10 @@ pub struct Client {
     pub(super) redirect_uri: Url,
 }
 
-/// What one in-flight request keeps until its return: the caller stores it under [`Pending::state`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// What one in-flight request keeps until its return: the caller stores it under [`Pending::state`]. It serializes,
+/// so a server can keep it in its own store between the two legs; it holds the PKCE verifier, so that store is as
+/// private as the code it protects, and short-lived.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Pending {
     state: String,
     nonce: String,

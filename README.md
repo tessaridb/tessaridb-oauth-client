@@ -50,7 +50,8 @@ Connect Discovery 1.0): over https (plain http only to a loopback address), at m
 when the document names exactly the configured issuer and every endpoint it lists is https with no credentials.
 
 `relying::begin` starts a sign-in: the address to send the user to, with PKCE (S256), a 128-bit `state` and a
-`nonce`, and the `Pending` request to keep under its `state`. `Pending::accept` takes the query the user returns with
+`nonce`, and the `Pending` request to keep under its `state` (it serializes, so a server can keep it in its own
+store between the two legs). `Pending::accept` takes the query the user returns with
 and gives the code only when it carries this request's `state` (compared in constant time) and names this issuer in
 `iss`; an error answer comes back as its code alone, never its text. `relying::validate_id_token` checks the ID token
 of the sign-in: the issuer's signature, a `typ` that is not an access token's or a proof's, the issuer, this client
