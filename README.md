@@ -10,7 +10,7 @@ A Rust library for applications that use a TessariDB OAuth issuer. An API valida
 a web application signs its users in and keeps their tokens. It talks to the issuer over the published protocol
 (OAuth 2.1, OpenID Connect, RFC 9068 access tokens, RFC 7517 key sets) and depends on no server code.
 
-[![status](https://img.shields.io/badge/status-in%20development-6B5FD1?style=flat-square)](#status)
+[![release](https://img.shields.io/badge/release-0.1.0-6B5FD1?style=flat-square)](#status)
 [![licence](https://img.shields.io/badge/licence-Apache--2.0-6B5FD1?style=flat-square)](LICENSE)
 [![rust](https://img.shields.io/badge/rust-1.98%2B-6B5FD1?style=flat-square)](#building-and-checking)
 
@@ -20,8 +20,8 @@ a web application signs its users in and keeps their tokens. It talks to the iss
 </div>
 
 > [!NOTE]
-> **No release yet.** Everything listed under [Status](#status) is covered by tests, including a run against a
-> running server; the API may change before the first release.
+> **0.1.0 is the first release.** Before 1.0 a change that breaks callers moves the minor number, so depend on
+> `"0.1"`.
 
 ## What it is for
 
@@ -34,7 +34,14 @@ a web application signs its users in and keeps their tokens. It talks to the iss
 
 ## Status
 
-In development, no release. What works: `resource::validate` checks an access token against a key set the caller
+Released as 0.1.0 on crates.io:
+
+```toml
+[dependencies]
+tessaridb-oauth-client = "0.1"
+```
+
+What it does: `resource::validate` checks an access token against a key set the caller
 has fetched and parsed with `resource::KeySet::parse`, in this order: its type (`at+jwt`), an algorithm the resource
 accepts (ES256 or EdDSA, never `none`), the key by `kid` in the issuer's set, the signature, the issuer, the
 audience, and expiry with 60 seconds of leeway. The first check that fails is the refusal.
